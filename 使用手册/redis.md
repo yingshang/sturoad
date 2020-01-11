@@ -191,24 +191,15 @@ redis作为优秀的中间缓存件，时常会存储大量的数据，即使采
 
 在redis中有两种解决方案，
 一是为数据设置超时时间，
-
-
-
 二是采用LRU算法动态将不用的数据删除。内存管理的一种页面置换算法，对于在内存中但又不用的数据块（内存块）叫做LRU，操作系统会根据哪些数据属于LRU而将其移出内存而腾出空间来加载另外的数据。
-
 1.volatile-lru：设定超时时间的数据中,删除最不常使用的数据.
-
 2.allkeys-lru：查询所有的key中最近最不常使用的数据进行删除，这是应用最广泛的策略.
-
 3.volatile-random：在已经设定了超时的数据中随机删除.
-
 4.allkeys-random：查询所有的key,之后随机删除.
-
 5.volatile-ttl：查询全部设定超时时间的数据,之后排序,将马上将要过期的数据进行删除操作.
-
 6.noeviction：如果设置为该属性,则不会进行删除操作,如果内存溢出则报错返回.
-volatile-lfu：从所有配置了过期时间的键中驱逐使用频率最少的键
-allkeys-lfu：从所有键中驱逐使用频率最少的键
+7.volatile-lfu：从所有配置了过期时间的键中驱逐使用频率最少的键
+8.allkeys-lfu：从所有键中驱逐使用频率最少的键
 ```
 
 
@@ -232,3 +223,124 @@ config get * ： 实时传储收到的请求，返回相关的配置
 flushdb ：清空当前数据库
 flushall : 清空所有数据库
 ```
+
+## redis 数据类型
+
+### string
+
+```
+setkey_name value：命令不区分大小写，但是key_name区分大小写
+SETNX key value：当key不存在时设置key的值。（SET if Not eXists）
+get key_name
+GETRANGE key start end：获取key中字符串的子字符串，从start开始，end结束
+MGET key1 [key2 …]：获取多个key
+GETSET KEY_NAME VALUE：设定key的值，并返回key的旧值。当key不存在，返回nil
+STRLEN key：返回key所存储的字符串的长度
+INCR KEY_NAME ：INCR命令key中存储的值+1,如果不存在key，则key中的值话先被初始化为0再加1
+INCRBY KEY_NAME 增量
+DECR KEY_NAME：key中的值自减一
+DECRBY KEY_NAME
+append key_name value：字符串拼接，追加至末尾，如果不存在，为其赋值
+```
+**应用场景**
+```
+1、String通常用于保存单个字符串或JSON字符串数据
+2、因为String是二进制安全的，所以可以把保密要求高的图片文件内容作为字符串来存储
+3、计数器：常规Key-Value缓存应用，如微博数、粉丝数。INCR本身就具有原子性特性，所以不会有线程安全问题
+
+```
+
+### hash
+Redis hash是一个string类型的field和value的映射表，hash特别适用于存储对象。每个hash可以存储232-1键值对。可以看成KEY和VALUE的MAP容器。相比于JSON，hash占用很少的内存空间。
+
+**常用命令**
+```
+HSET key_name field value：为指定的key设定field和value
+hmset key field value[field1,value1]
+hget key field
+hmget key field[field1]
+hgetall key：返回hash表中所有字段和值
+hkeys key：获取hash表所有字段
+hlen key：获取hash表中的字段数量
+-hdel key field [field1]：删除一个或多个hash表的字段
+```
+**应用场景**
+```
+Hash的应用场景，通常用来存储一个用户信息的对象数据。
+1、相比于存储对象的string类型的json串，json串修改单个属性需要将整个值取出来。而hash不需要。
+2、相比于多个key-value存储对象，hash节省了很多内存空间
+3、如果hash的属性值被删除完，那么hash的key也会被redis删除
+```
+### list
+```
+lpush key value1 [value2]
+rpush key value1 [value2]
+lpushx key value：从左侧插入值，如果list不存在，则不操作
+rpushx key value：从右侧插入值，如果list不存在，则不操作
+llen key：获取列表长度
+lindex key index：获取指定索引的元素
+lrange key start stop：获取列表指定范围的元素
+lpop key ：从左侧移除第一个元素
+prop key：移除列表最后一个元素
+blpop key [key1] timeout：移除并获取列表第一个元素，如果列表没有元素会阻塞列表到等待超时或发现可弹出元素为止
+brpop key [key1] timeout：移除并获取列表最后一个元素，如果列表没有元素会阻塞列表到等待超时或发现可弹出元素为止
+ltrim key start stop ：对列表进行修改，让列表只保留指定区间的元素，不在指定区间的元素就会被删除
+lset key index value ：指定索引的值
+linsert key before|after world value：在列表元素前或则后插入元素
+
+```
+**应用场景**
+```
+1、对数据大的集合数据删减
+		列表显示、关注列表、粉丝列表、留言评价...分页、热点新闻等
+2、任务队列
+		list通常用来实现一个消息队列，而且可以确保先后顺序，不必像MySQL那样通过order by来排序
+
+rpoplpush list1 list2 移除list1最后一个元素，并将该元素添加到list2并返回此元素
+用此命令可以实现订单下单流程、用户系统登录注册短信等。
+```
+### set
+
+```
+sadd key value1[value2]：向集合添加成员
+scard key：返回集合成员数
+smembers key：返回集合中所有成员
+sismember key member：判断memeber元素是否是集合key成员的成员
+srandmember key [count]：返回集合中一个或多个随机数
+srem key member1 [member2]：移除集合中一个或多个成员
+spop key：移除并返回集合中的一个随机元素
+smove source destination member：将member元素从source集合移动到destination集合
+sdiff key1 [key2]：返回所有集合的差集
+sdiffstore destination key1[key2]：返回给定所有集合的差集并存储在destination中
+```
+```
+对两个集合间的数据[计算]进行交集、并集、差集运算
+1、以非常方便的实现如共同关注、共同喜好、二度好友等功能。对上面的所有集合操作，你还可以使用不同的命令选择将结果返回给客户端还是存储到一个新的集合中。
+2、利用唯一性，可以统计访问网站的所有独立 IP
+```
+
+### zset
+有序且不重复。每个元素都会关联一个double类型的分数，Redis通过分数进行从小到大的排序。分数可以重复
+
+```
+ZADD key score1 memeber1
+ZCARD key ：获取集合中的元素数量
+ZCOUNT key min max 计算在有序集合中指定区间分数的成员数
+ZCOUNT key min max 计算在有序集合中指定区间分数的成员数
+ZRANK key member：返回有序集合指定成员的索引
+ZREVRANGE key start stop ：返回有序集中指定区间内的成员，通过索引，分数从高到底
+ZREM key member [member …] 移除有序集合中的一个或多个成员
+ZREMRANGEBYRANK key start stop 移除有序集合中给定的排名区间的所有成员(第一名是0)(低到高排序）
+ZREMRANGEBYSCORE key min max 移除有序集合中给定的分数区间的所有成员
+```
+```
+常用于排行榜：
+1、如推特可以以发表时间作为score来存储
+2、存储成绩
+3、还可以用zset来做带权重的队列，让重要的任务先执行
+```
+
+
+
+https://blog.csdn.net/qq_33423418/article/details/101351944
+
